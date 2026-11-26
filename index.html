@@ -69,7 +69,7 @@ small{color:#64748b}
 
 <section id="reportPage" class="hidden">
 <div class="panel">
-<h2>📊 Báo cáo tổng hợp</h2>
+<h2>📊 Báo cáo tổng hợp</h2><p id="liveStatus" class="note" role="status">Chờ kết nối dữ liệu...</p><button class="btn secondary" onclick="startCloudResultsListener()">Kết nối lại</button>
 <div class="cards" id="metrics"></div>
 <div class="dash-grid"><div class="chart-card"><h3>📈 Phân bố điểm</h3><div id="scoreHistogram"></div></div><div class="chart-card"><h3>🏅 Xếp loại</h3><div id="rankChart" class="bars"></div></div><div class="chart-card"><h3>📊 Điểm từng cá nhân</h3><label class="chart-select">Sắp xếp<select id="sortScores" onchange="renderReport()"><option value="asc">Điểm tăng dần</option><option value="desc">Điểm giảm dần</option><option value="name">Tên A–Z</option></select></label><div id="individualChart" class="bars"></div></div></div>
 <div style="margin-top:15px">
@@ -154,11 +154,13 @@ function initCloud(){
 }
 function save(){localStorage.setItem("quizQuestions",JSON.stringify(questions));}
 async function publishQuestions(){if(!adminMode||!teacherUser||!cloudReady)throw Error("Cần đăng nhập giáo viên.");await cloudDb.collection("config").doc("quiz").set({questions,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});save();}
-function startCloudResultsListener(){if(!cloudReady||!teacherUser)return;if(cloudListener)cloudListener();cloudListener=cloudDb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snapshot=>{results=snapshot.docs.map(doc=>({...doc.data(),cloudId:doc.id}));if(!document.getElementById("reportPage").classList.contains("hidden"))renderReport();},error=>{console.error(error);alert("Không đọc được dữ liệu cloud. Hãy kiểm tra Firestore Rules và tài khoản giáo viên.")});}
+function startCloudResultsListener(){if(!cloudReady||!teacherUser)return;if(cloudListener)cloudListener();const status=document.getElementById("liveStatus");status.textContent="Đang kết nối máy chủ...";cloudListener=cloudDb.collection("submissions").orderBy("submittedAt","desc").onSnapshot({includeMetadataChanges:true},snapshot=>{results=snapshot.docs.map(doc=>({...doc.data(),cloudId:doc.id}));status.textContent=(snapshot.metadata.fromCache?"Dữ liệu bộ nhớ đệm — đang chờ máy chủ":"Đã đồng bộ trực tuyến")+" | "+results.length+" bài nộp | "+new Date().toLocaleTimeString("vi-VN");if(!document.getElementById("reportPage").classList.contains("hidden"))renderReport();},error=>{status.textContent="Mất kết nối hoặc không có quyền: "+error.message;});}
 function showPage(id,btn){if((id==="report"||id==="manage")&&!adminMode){alert("Chức năng này chỉ dành cho giáo viên.");return}document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));document.getElementById(id+"Page").classList.remove("hidden");document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");if(id==="report")renderReport();if(id==="manage")renderQuestionAdmin()}
 function renderQuiz(){let el=document.getElementById("questionList");el.innerHTML="";questions.forEach((q,i)=>{let div=document.createElement("div");div.className="question";div.innerHTML=`<p>Câu ${i+1}: ${escapeHTML(q.q)}</p>`+q.a.map((a,j)=>`<label class="option"><input type="radio" name="q${i}" value="${j}"><span><b>${"ABCD"[j]}.</b> ${escapeHTML(a)}</span></label>`).join("");el.appendChild(div)})}
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+let submitting=false, pendingSubmission=null;
 async function submitQuiz(){
+ if(submitting)return;
  let name=document.getElementById("studentName").value.trim();if(!name){alert("Vui lòng nhập họ và tên trước khi nộp bài.");document.getElementById("studentName").focus();return}
  if(!questions.length){alert("Đề hiện chưa có câu hỏi.");return}
  let answers=questions.map((q,i)=>{let v=document.querySelector(`input[name="q${i}"]:checked`);return v?Number(v.value):-1});
@@ -168,9 +170,11 @@ async function submitQuiz(){
  let record={name,className:document.getElementById("studentClass").value.trim(),code:document.getElementById("studentCode").value.trim(),correct,wrong:questions.length-correct,score,rank,date:new Date().toLocaleString("vi-VN"),total:questions.length,answers,questionSnapshot:JSON.parse(JSON.stringify(questions)),scoreAdjustment:0};
  
  let cloudStatus="Chế độ luyện tập: kết quả chỉ hiển thị trên màn hình.";
- if(cloudReady){try{const docRef=await cloudDb.collection("submissions").add({...record,submittedAt:new Date().toISOString(),createdAt:firebase.firestore.FieldValue.serverTimestamp()});record.cloudId=docRef.id;cloudStatus="Đã gửi bài thành công lên hệ thống trực tuyến.";}catch(e){console.error(e);cloudStatus="Chưa gửi được bài. Vui lòng kiểm tra kết nối và thử lại.";}}else{cloudStatus="Chế độ luyện tập: chưa cấu hình Firebase, bài chưa được gửi cho giáo viên.";}
+ const btn=document.querySelector('button[onclick="submitQuiz()"]');submitting=true;if(btn){btn.disabled=true;btn.textContent="Đang gửi bài...";}
+ if(cloudReady){try{const docRef=cloudDb.collection("submissions").doc();await docRef.set({...record,submittedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:firebase.firestore.FieldValue.serverTimestamp()});record.cloudId=docRef.id;cloudStatus="Máy chủ đã xác nhận nhận bài. Mã bài: "+docRef.id;}catch(e){console.error(e);cloudStatus="Chưa gửi được bài. Vui lòng kiểm tra kết nối và thử lại.";}}else{cloudStatus="Chế độ luyện tập: chưa cấu hình Firebase, bài chưa được gửi cho giáo viên.";}
+ submitting=false;if(btn){btn.disabled=false;btn.textContent="Nộp bài và xem kết quả";}
  let panel=document.getElementById("resultPanel");panel.classList.remove("hidden");
- panel.innerHTML=`<div class="result"><h2>Kết quả bài làm</h2><p><b>${escapeHTML(name)}</b></p><div class="score">${score}/10</div><p>Đúng: <b>${correct}/${questions.length}</b> câu &nbsp;|&nbsp; Sai hoặc chưa trả lời: <b>${questions.length-correct}</b></p><h3>Xếp loại: ${rank}</h3><p>${cloudStatus}</p></div>`;
+ panel.innerHTML=`<div class="result"><h2>Kết quả bài làm</h2><p><b>${escapeHTML(name)}</b></p><div class="score">${score}/10</div><p>Đúng: <b>${correct}/${questions.length}</b> câu &nbsp;|&nbsp; Sai hoặc chưa trả lời: <b>${questions.length-correct}</b></p><h3>Xếp loại: ${rank}</h3><p>${escapeHTML(cloudStatus)}</p></div>`;
  panel.scrollIntoView({behavior:"smooth"});
 }
 function showReportQuick(){document.querySelector('nav button:nth-child(2)').click()}
