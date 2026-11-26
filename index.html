@@ -103,13 +103,18 @@ small{color:#64748b}
 <div class="table-wrap"><table><thead><tr><th>#</th><th>Câu hỏi</th><th>Đáp án</th><th></th></tr></thead><tbody id="questionAdminTable"></tbody></table></div>
 </div>
 </section>
-<div id="adminLogin" class="panel hidden" style="position:fixed;inset:25% 8%;z-index:110;max-width:480px;margin:auto;box-shadow:0 0 0 100vmax #0008;height:max-content;">
-<h2>🔐 Đăng nhập giáo viên</h2><p>Nhập mật khẩu để mở báo cáo và quản lý câu hỏi.</p>
-<label>Mật khẩu quản trị<input id="adminPassword" type="password" placeholder="Mật khẩu"></label>
+<div id="adminLogin" class="panel hidden" style="position:fixed;inset:20% 8%;z-index:110;max-width:480px;margin:auto;box-shadow:0 0 0 100vmax #0008;height:max-content;">
+<h2>🔐 Đăng nhập giáo viên</h2><p>Đăng nhập bằng tài khoản Firebase Authentication đã được quản trị viên tạo.</p>
+<label>Email giáo viên<input id="adminEmail" type="email" placeholder="email@truong.edu.vn"></label>
+<label>Mật khẩu<input id="adminPassword" type="password" placeholder="Mật khẩu"></label>
 <button class="btn primary" onclick="unlockAdmin()">Đăng nhập</button><button class="btn secondary" onclick="closeAdminLogin()">Hủy</button>
 </div>
 <div id="reviewModal" class="panel hidden" style="position:fixed;inset:4% 3%;z-index:100;overflow:auto;box-shadow:0 0 0 100vmax #0008;max-width:1000px;margin:auto;"><button class="btn secondary" onclick="closeReview()" style="float:right">✕ Đóng</button><div id="reviewContent"></div></div>
 </main>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
 <script>
 const defaultQuestions=[
 {q:"HTML là viết tắt của cụm từ nào?",a:["Hyper Text Markup Language","High Transfer Machine Language","Home Tool Markup Language","Hyperlink Text Management Language"],correct:0},
@@ -140,11 +145,19 @@ const defaultQuestions=[
 ];
 let questions=JSON.parse(localStorage.getItem("quizQuestions")||"null")||defaultQuestions;
 let results=JSON.parse(localStorage.getItem("quizResults")||"[]");
-function save(){localStorage.setItem("quizQuestions",JSON.stringify(questions));localStorage.setItem("quizResults",JSON.stringify(results))}
+let cloudDb=null, cloudAuth=null, cloudReady=false, cloudListener=null, teacherUser=null;
+function initCloud(){
+ try{const cfg=window.quizFirebaseConfig||{};if(!cfg.apiKey||String(cfg.apiKey).includes("YOUR_")||!cfg.projectId||String(cfg.projectId).includes("YOUR_"))return;
+ firebase.initializeApp(cfg);cloudAuth=firebase.auth();cloudDb=firebase.firestore();cloudReady=true;
+ cloudDb.collection("config").doc("quiz").get().then(doc=>{if(doc.exists&&Array.isArray(doc.data().questions)){questions=doc.data().questions;localStorage.setItem("quizQuestions",JSON.stringify(questions));renderQuiz();}}).catch(e=>console.warn("Không tải được ngân hàng câu hỏi cloud",e));
+ }catch(e){console.error("Firebase init failed",e);cloudReady=false}
+}
+function save(){localStorage.setItem("quizQuestions",JSON.stringify(questions));localStorage.setItem("quizResults",JSON.stringify(results));if(cloudReady&&teacherUser)cloudDb.collection("config").doc("quiz").set({questions,updatedAt:new Date().toISOString()}).catch(e=>console.error("Cloud question save failed",e));}
+function startCloudResultsListener(){if(!cloudReady||!teacherUser)return;if(cloudListener)cloudListener();cloudListener=cloudDb.collection("submissions").orderBy("submittedAt","desc").onSnapshot(snapshot=>{results=snapshot.docs.map(doc=>({...doc.data(),cloudId:doc.id}));localStorage.setItem("quizResults",JSON.stringify(results));if(!document.getElementById("reportPage").classList.contains("hidden"))renderReport();},error=>{console.error(error);alert("Không đọc được dữ liệu cloud. Hãy kiểm tra Firestore Rules và tài khoản giáo viên.")});}
 function showPage(id,btn){if((id==="report"||id==="manage")&&!adminMode){alert("Chức năng này chỉ dành cho giáo viên.");return}document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));document.getElementById(id+"Page").classList.remove("hidden");document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");if(id==="report")renderReport();if(id==="manage")renderQuestionAdmin()}
 function renderQuiz(){let el=document.getElementById("questionList");el.innerHTML="";questions.forEach((q,i)=>{let div=document.createElement("div");div.className="question";div.innerHTML=`<p>Câu ${i+1}: ${escapeHTML(q.q)}</p>`+q.a.map((a,j)=>`<label class="option"><input type="radio" name="q${i}" value="${j}"><span><b>${"ABCD"[j]}.</b> ${escapeHTML(a)}</span></label>`).join("");el.appendChild(div)})}
 function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function submitQuiz(){
+async function submitQuiz(){
  let name=document.getElementById("studentName").value.trim();if(!name){alert("Vui lòng nhập họ và tên trước khi nộp bài.");document.getElementById("studentName").focus();return}
  if(!questions.length){alert("Đề hiện chưa có câu hỏi.");return}
  let answers=questions.map((q,i)=>{let v=document.querySelector(`input[name="q${i}"]:checked`);return v?Number(v.value):-1});
@@ -153,8 +166,10 @@ function submitQuiz(){
  let rank=score>=8?"Tốt":score>=6.5?"Khá":score>=5?"Đạt":"Cần cố gắng";
  let record={name,className:document.getElementById("studentClass").value.trim(),code:document.getElementById("studentCode").value.trim(),correct,wrong:questions.length-correct,score,rank,date:new Date().toLocaleString("vi-VN"),total:questions.length,answers,questionSnapshot:JSON.parse(JSON.stringify(questions)),scoreAdjustment:0};
  results.push(record);save();
+ let cloudStatus="Bài làm đã lưu trên thiết bị này.";
+ if(cloudReady){try{const docRef=await cloudDb.collection("submissions").add({...record,submittedAt:new Date().toISOString(),createdAt:firebase.firestore.FieldValue.serverTimestamp()});record.cloudId=docRef.id;localStorage.setItem("quizResults",JSON.stringify(results));cloudStatus="Đã gửi bài thành công lên hệ thống trực tuyến.";}catch(e){console.error(e);cloudStatus="Chưa gửi được lên cloud; bài vẫn được lưu trên thiết bị. Vui lòng kiểm tra kết nối.";}}else{cloudStatus="Firebase chưa cấu hình; bài hiện chỉ lưu trên thiết bị.";}
  let panel=document.getElementById("resultPanel");panel.classList.remove("hidden");
- panel.innerHTML=`<div class="result"><h2>Kết quả bài làm</h2><p><b>${escapeHTML(name)}</b></p><div class="score">${score}/10</div><p>Đúng: <b>${correct}/${questions.length}</b> câu &nbsp;|&nbsp; Sai hoặc chưa trả lời: <b>${questions.length-correct}</b></p><h3>Xếp loại: ${rank}</h3><p>Đã lưu kết quả vào báo cáo tổng hợp.</p><button class="btn primary" onclick="showReportQuick()">Xem báo cáo</button></div>`;
+ panel.innerHTML=`<div class="result"><h2>Kết quả bài làm</h2><p><b>${escapeHTML(name)}</b></p><div class="score">${score}/10</div><p>Đúng: <b>${correct}/${questions.length}</b> câu &nbsp;|&nbsp; Sai hoặc chưa trả lời: <b>${questions.length-correct}</b></p><h3>Xếp loại: ${rank}</h3><p>"+cloudStatus+"</p><button class="btn primary" onclick="showReportQuick()">Xem báo cáo</button></div>`;
  panel.scrollIntoView({behavior:"smooth"});
 }
 function showReportQuick(){document.querySelector('nav button:nth-child(2)').click()}
@@ -213,22 +228,22 @@ function reviewResult(i){
  document.getElementById("reviewModal").classList.remove("hidden");
 }
 function closeReview(){document.getElementById("reviewModal").classList.add("hidden")}
-function editResultScore(i){
+async function editResultScore(i){
  let r=results[i],value=prompt(`Nhập điểm mới cho ${r.name} (0–10):`,r.score);
  if(value===null)return;let score=Number(value);
  if(!Number.isFinite(score)||score<0||score>10){alert("Điểm phải nằm trong khoảng 0 đến 10.");return}
  r.score=score;r.rank=score>=8?"Tốt":score>=6.5?"Khá":score>=5?"Đạt":"Cần cố gắng";r.scoreAdjustment=(r.scoreAdjustment||0)+1;
+ if(cloudReady&&teacherUser&&r.cloudId){try{await cloudDb.collection("submissions").doc(r.cloudId).update({score:r.score,rank:r.rank,scoreAdjustment:r.scoreAdjustment});}catch(e){alert("Không cập nhật được cloud: "+e.message);}}
  save();renderReport();alert("Đã cập nhật điểm.");
 }
-function deleteResult(i){if(confirm(`Xóa bài làm của ${results[i].name}?`)){results.splice(i,1);save();renderReport()}}
+async function deleteResult(i){if(confirm(`Xóa bài làm của ${results[i].name}?`)){const r=results[i];if(cloudReady&&teacherUser&&r.cloudId){try{await cloudDb.collection("submissions").doc(r.cloudId).delete();}catch(e){alert("Không xóa được bài trên cloud: "+e.message);return;}}results.splice(i,1);save();renderReport()}}
 
 
-const ADMIN_PASSWORD="123456"; // Giáo viên nên đổi mật khẩu trong mã nguồn trước khi chia sẻ.
 let adminMode=false;
-function toggleAdmin(){if(adminMode){adminMode=false;document.getElementById("reportTab").classList.add("hidden");document.getElementById("manageTab").classList.add("hidden");document.getElementById("adminToggle").textContent="🔐 Đăng nhập giáo viên";document.getElementById("studentNotice").classList.remove("hidden");showPage("quiz",document.querySelector('nav button:first-child'));}else{document.getElementById("adminLogin").classList.remove("hidden");document.getElementById("adminPassword").value="";document.getElementById("adminPassword").focus();}}
-function unlockAdmin(){if(document.getElementById("adminPassword").value===ADMIN_PASSWORD){adminMode=true;document.getElementById("adminLogin").classList.add("hidden");document.getElementById("reportTab").classList.remove("hidden");document.getElementById("manageTab").classList.remove("hidden");document.getElementById("adminToggle").textContent="🔓 Đăng xuất giáo viên";document.getElementById("studentNotice").classList.add("hidden");alert("Đăng nhập quản trị thành công.");}else{alert("Mật khẩu không đúng.");}}
+function toggleAdmin(){if(adminMode){adminMode=false;if(cloudListener){cloudListener();cloudListener=null;}if(cloudReady&&cloudAuth)cloudAuth.signOut();teacherUser=null;document.getElementById("reportTab").classList.add("hidden");document.getElementById("manageTab").classList.add("hidden");document.getElementById("adminToggle").textContent="🔐 Đăng nhập giáo viên";document.getElementById("studentNotice").classList.remove("hidden");showPage("quiz",document.querySelector('nav button:first-child'));}else{document.getElementById("adminLogin").classList.remove("hidden");document.getElementById("adminPassword").value="";document.getElementById("adminEmail").focus();}}
+async function unlockAdmin(){if(!cloudReady){alert("Firebase chưa được cấu hình. Hãy hoàn thành firebase-config.js trước.");return;}const email=document.getElementById("adminEmail").value.trim(),password=document.getElementById("adminPassword").value;if(!email||!password){alert("Vui lòng nhập email và mật khẩu.");return;}try{const cred=await cloudAuth.signInWithEmailAndPassword(email,password);teacherUser=cred.user;adminMode=true;document.getElementById("adminLogin").classList.add("hidden");document.getElementById("reportTab").classList.remove("hidden");document.getElementById("manageTab").classList.remove("hidden");document.getElementById("adminToggle").textContent="🔓 Đăng xuất giáo viên";document.getElementById("studentNotice").classList.add("hidden");startCloudResultsListener();alert("Đăng nhập quản trị thành công. Đã bật đồng bộ bài nộp.");}catch(e){alert("Đăng nhập thất bại: "+e.message);}}
 function closeAdminLogin(){document.getElementById("adminLogin").classList.add("hidden")}
-
+initCloud();
 renderQuiz();
 </script>
 </body>
