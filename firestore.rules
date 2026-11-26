@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isTeacher() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in [
+          "REPLACE_WITH_TEACHER_EMAIL"
+        ];
+    }
+
+    // Student submissions: public create only; only listed teachers may read/edit/delete.
+    match /submissions/{submissionId} {
+      allow create: if request.auth == null
+        && request.resource.data.keys().hasAll([
+          "name", "className", "code", "score", "rank", "total",
+          "correct", "wrong", "answers", "questionSnapshot", "submittedAt"
+        ])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 150
+        && request.resource.data.score is number
+        && request.resource.data.score >= 0
+        && request.resource.data.score <= 10;
+      allow read, update, delete: if isTeacher();
+    }
+
+    // Quiz config can be read by students; only teachers can modify it.
+    match /config/{configId} {
+      allow read: if configId == "quiz";
+      allow write: if isTeacher();
+    }
+  }
+}
