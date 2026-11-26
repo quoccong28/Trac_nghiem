@@ -169,7 +169,7 @@ async function submitQuiz(){
  let cloudStatus="Bài làm đã lưu trên thiết bị này.";
  if(cloudReady){try{const docRef=await cloudDb.collection("submissions").add({...record,submittedAt:new Date().toISOString(),createdAt:firebase.firestore.FieldValue.serverTimestamp()});record.cloudId=docRef.id;localStorage.setItem("quizResults",JSON.stringify(results));cloudStatus="Đã gửi bài thành công lên hệ thống trực tuyến.";}catch(e){console.error(e);cloudStatus="Chưa gửi được lên cloud; bài vẫn được lưu trên thiết bị. Vui lòng kiểm tra kết nối.";}}else{cloudStatus="Firebase chưa cấu hình; bài hiện chỉ lưu trên thiết bị.";}
  let panel=document.getElementById("resultPanel");panel.classList.remove("hidden");
- panel.innerHTML=`<div class="result"><h2>Kết quả bài làm</h2><p><b>${escapeHTML(name)}</b></p><div class="score">${score}/10</div><p>Đúng: <b>${correct}/${questions.length}</b> câu &nbsp;|&nbsp; Sai hoặc chưa trả lời: <b>${questions.length-correct}</b></p><h3>Xếp loại: ${rank}</h3><p>"+cloudStatus+"</p><button class="btn primary" onclick="showReportQuick()">Xem báo cáo</button></div>`;
+ panel.innerHTML=`<div class="result"><h2>Kết quả bài làm</h2><p><b>${escapeHTML(name)}</b></p><div class="score">${score}/10</div><p>Đúng: <b>${correct}/${questions.length}</b> câu &nbsp;|&nbsp; Sai hoặc chưa trả lời: <b>${questions.length-correct}</b></p><h3>Xếp loại: ${rank}</h3><p>${cloudStatus}</p><button class="btn primary" onclick="showReportQuick()">Xem báo cáo</button></div>`;
  panel.scrollIntoView({behavior:"smooth"});
 }
 function showReportQuick(){document.querySelector('nav button:nth-child(2)').click()}
