@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ứng dụng trắc nghiệm & báo cáo điểm</title>
+<style>
+:root{--blue:#2563eb;--dark:#16325c;--bg:#f3f6fb;--green:#16a34a;--red:#dc2626;--orange:#d97706}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:#1f2937}
+header{background:linear-gradient(120deg,#173b75,#2563eb);color:white;padding:24px 5%;box-shadow:0 3px 12px #0002}
+header h1{margin:0 0 8px;font-size:25px}header p{margin:0;opacity:.9}
+nav{display:flex;gap:10px;padding:14px 5%;background:white;box-shadow:0 2px 6px #0001;flex-wrap:wrap}
+nav button{border:0;padding:11px 16px;border-radius:9px;background:#e8eef8;color:#1e3a8a;font-weight:bold;cursor:pointer}
+nav button.active{background:var(--blue);color:white}
+main{max-width:1100px;margin:25px auto;padding:0 16px}
+.panel{background:white;border-radius:15px;padding:22px;box-shadow:0 3px 14px #0000000b;margin-bottom:20px}
+.hidden{display:none!important}
+h2{margin:0 0 16px;color:var(--dark)}h3{color:var(--dark)}
+input,select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font-size:15px;margin-top:6px}
+label{font-weight:600;display:block;margin-bottom:15px}
+.btn{border:0;border-radius:9px;padding:12px 17px;font-weight:bold;cursor:pointer;margin:5px 4px 5px 0}
+.primary{background:var(--blue);color:white}.secondary{background:#e5e7eb;color:#111827}.success{background:var(--green);color:white}.danger{background:var(--red);color:white}
+.question{border:1px solid #dbe4f0;padding:17px;border-radius:12px;margin:15px 0}
+.question p{font-weight:bold;margin:0 0 12px}
+.option{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:8px;background:#f8fafc;margin:7px 0;cursor:pointer;font-weight:normal}
+.option input{width:auto;margin:2px 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.metric{background:#f0f6ff;border-radius:12px;padding:17px;border-left:4px solid var(--blue)}
+.metric .num{font-size:27px;font-weight:bold;color:var(--blue);margin-top:7px}
+table{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+th,td{border:1px solid #e2e8f0;padding:10px;text-align:left}
+th{background:#eff6ff;color:#1e3a8a}
+.table-wrap{overflow-x:auto}
+.result{text-align:center;padding:25px}
+.score{font-size:42px;color:var(--blue);font-weight:bold}
+.note{background:#fff7ed;padding:12px;border-radius:9px;color:#9a3412}
+small{color:#64748b}
+.dash-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin:18px 0}.chart-card{border:1px solid #dbe4f0;border-radius:12px;padding:15px;background:#fff}.chart-card h3{margin:0 0 12px}.bars{display:flex;flex-direction:column;gap:9px}.bar-row{display:grid;grid-template-columns:minmax(80px,130px) 1fr 48px;gap:8px;align-items:center;font-size:13px}.bar-track{height:18px;background:#eaf0f8;border-radius:8px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#60a5fa);border-radius:8px;min-width:2px}.bar-value{text-align:right;font-weight:bold}.histogram{display:flex;align-items:flex-end;gap:10px;height:180px;padding:8px 8px 0;border-bottom:1px solid #cbd5e1}.hist-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%}.hist-bar{width:100%;max-width:48px;background:linear-gradient(#60a5fa,#2563eb);border-radius:6px 6px 0 0;min-height:2px}.hist-label{font-size:12px;color:#475569}.hist-count{font-size:12px;font-weight:bold}.chart-select{max-width:250px;margin:8px 0}.review-item{padding:14px;border:1px solid #dbe4f0;border-radius:10px;margin:12px 0}.correct-answer{background:#ecfdf5;border-color:#86efac}.wrong-answer{background:#fff1f2;border-color:#fda4af}.edit-box{background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;padding:15px;margin:12px 0}.action-btn{padding:7px 10px;font-size:12px;margin:2px}\n@media(max-width:600px){header h1{font-size:21px}.panel{padding:15px}nav button{flex:1}}
+</style>
+</head>
+<body>
+<header>
+<h1>📝 Hệ thống trắc nghiệm và báo cáo kết quả</h1>
+<p>Nhập thông tin người làm bài • Chấm điểm tự động • Tổng hợp kết quả cá nhân</p>
+</header>
+<nav id="mainNav">
+<button class="active" onclick="showPage('quiz',this)">Làm bài trắc nghiệm</button>
+<button id="reportTab" class="hidden" onclick="showPage('report',this)">Báo cáo tổng hợp</button>
+<button id="manageTab" class="hidden" onclick="showPage('manage',this)">Quản lý câu hỏi</button>
+<button id="adminToggle" class="secondary" onclick="toggleAdmin()">🔐 Đăng nhập giáo viên</button>
+</nav>
+<main>
+<section id="quizPage">
+<div class="panel" id="studentNotice"><p class="note">🔒 Chế độ học sinh: chỉ làm bài và xem kết quả của bài vừa nộp. Báo cáo và quản lý câu hỏi đã được ẩn.</p></div>
+<div class="panel">
+<h2>Thông tin người trả lời</h2>
+<label>Họ và tên <input id="studentName" placeholder="Nhập họ tên đầy đủ" required></label>
+<label>Lớp / Đơn vị <input id="studentClass" placeholder="Ví dụ: 5A / Nhóm 1 (không bắt buộc)"></label>
+<label>Mã số (không bắt buộc) <input id="studentCode" placeholder="Nhập mã học sinh / mã người làm"></label>
+</div>
+<div class="panel">
+<h2>Đề trắc nghiệm</h2>
+<div id="questionList"></div>
+<button class="btn primary" onclick="submitQuiz()">Nộp bài và xem kết quả</button>
+<button class="btn secondary" onclick="clearAnswers()">Làm lại / xóa lựa chọn</button>
+</div>
+<div id="resultPanel" class="panel hidden"></div>
+</section>
+
+<section id="reportPage" class="hidden">
+<div class="panel">
+<h2>📊 Báo cáo tổng hợp</h2>
+<div class="cards" id="metrics"></div>
+<div class="dash-grid"><div class="chart-card"><h3>📈 Phân bố điểm</h3><div id="scoreHistogram"></div></div><div class="chart-card"><h3>🏅 Xếp loại</h3><div id="rankChart" class="bars"></div></div><div class="chart-card"><h3>📊 Điểm từng cá nhân</h3><label class="chart-select">Sắp xếp<select id="sortScores" onchange="renderReport()"><option value="asc">Điểm tăng dần</option><option value="desc">Điểm giảm dần</option><option value="name">Tên A–Z</option></select></label><div id="individualChart" class="bars"></div></div></div>
+<div style="margin-top:15px">
+<button class="btn success" onclick="exportCSV()">⬇ Xuất báo cáo CSV (mở bằng Excel)</button>
+<button class="btn danger" onclick="deleteAllResults()">Xóa toàn bộ dữ liệu kết quả</button>
+</div>
+<label style="max-width:400px;margin-top:15px">Tìm kiếm người làm bài
+<input id="searchResult" placeholder="Gõ tên, lớp hoặc mã..." oninput="renderReport()"></label>
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>Họ tên</th><th>Lớp/Đơn vị</th><th>Mã</th><th>Đúng</th><th>Sai</th><th>Điểm</th><th>Xếp loại</th><th>Thời gian</th><th>Thao tác</th></tr></thead>
+<tbody id="resultTable"></tbody>
+</table></div>
+</div>
+</section>
+
+<section id="managePage" class="hidden">
+<div class="panel">
+<h2>⚙️ Quản lý câu hỏi</h2>
+<p class="note">Có thể thêm câu hỏi vào đề. Đáp án đúng được lưu trong trình duyệt này. Dữ liệu câu hỏi mẫu có thể chỉnh sửa trực tiếp bên dưới.</p>
+<label>Nội dung câu hỏi <input id="newQuestion" placeholder="Nhập nội dung câu hỏi"></label>
+<div class="cards">
+<label>Phương án A<input id="optA" placeholder="Phương án A"></label>
+<label>Phương án B<input id="optB" placeholder="Phương án B"></label>
+<label>Phương án C<input id="optC" placeholder="Phương án C"></label>
+<label>Phương án D<input id="optD" placeholder="Phương án D"></label>
+</div>
+<label>Đáp án đúng
+<select id="correctAnswer"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></label>
+<button class="btn primary" onclick="addQuestion()">Thêm câu hỏi</button>
+<button class="btn secondary" onclick="restoreQuestions()">Khôi phục câu hỏi mẫu</button>
+<div class="table-wrap"><table><thead><tr><th>#</th><th>Câu hỏi</th><th>Đáp án</th><th></th></tr></thead><tbody id="questionAdminTable"></tbody></table></div>
+</div>
+</section>
+<div id="adminLogin" class="panel hidden" style="position:fixed;inset:25% 8%;z-index:110;max-width:480px;margin:auto;box-shadow:0 0 0 100vmax #0008;height:max-content;">
+<h2>🔐 Đăng nhập giáo viên</h2><p>Nhập mật khẩu để mở báo cáo và quản lý câu hỏi.</p>
+<label>Mật khẩu quản trị<input id="adminPassword" type="password" placeholder="Mật khẩu"></label>
+<button class="btn primary" onclick="unlockAdmin()">Đăng nhập</button><button class="btn secondary" onclick="closeAdminLogin()">Hủy</button>
+</div>
+<div id="reviewModal" class="panel hidden" style="position:fixed;inset:4% 3%;z-index:100;overflow:auto;box-shadow:0 0 0 100vmax #0008;max-width:1000px;margin:auto;"><button class="btn secondary" onclick="closeReview()" style="float:right">✕ Đóng</button><div id="reviewContent"></div></div>
+</main>
+<script>
+const defaultQuestions=[
+{q:"HTML là viết tắt của cụm từ nào?",a:["Hyper Text Markup Language","High Transfer Machine Language","Home Tool Markup Language","Hyperlink Text Management Language"],correct:0},
+{q:"Thẻ HTML nào thường dùng để tạo tiêu đề lớn nhất?",a:["<h6>","<head>","<h1>","<title>"],correct:2},
+{q:"CSS được sử dụng chủ yếu để làm gì?",a:["Lưu trữ dữ liệu","Định dạng và thiết kế giao diện","Tạo cơ sở dữ liệu","Chạy máy chủ"],correct:1},
+{q:"JavaScript thường được dùng để?",a:["Tạo tính tương tác cho trang web","Chỉ viết văn bản","Thay thế hệ điều hành","Tạo tệp ảnh"],correct:0},
+{q:"Thuộc tính nào trong HTML dùng để đặt liên kết?",a:["src","href","linkto","url"],correct:1},
+{q:"Thẻ HTML nào tạo một đoạn văn bản?",a:["<p>","<img>","<table>","<br>"],correct:0},
+{q:"Thẻ nào dùng để chèn hình ảnh vào trang web?",a:["<picturetext>","<image>","<img>","<photo>"],correct:2},
+{q:"Thẻ HTML nào tạo danh sách có thứ tự?",a:["<ul>","<ol>","<li>","<dl>"],correct:1},
+{q:"Trong CSS, thuộc tính nào thay đổi màu chữ?",a:["font-style","background","text-size","color"],correct:3},
+{q:"Ký hiệu CSS nào dùng để chọn phần tử có id là 'header'?",a:[".header","header","#header","*header"],correct:2},
+{q:"CSS box model gồm các thành phần nào?",a:["Content, padding, border, margin","Text, image, link, color","Width, height, font, color","Header, body, footer, nav"],correct:0},
+{q:"Đơn vị CSS 'px' thường biểu thị gì?",a:["Phần trăm","Pixel","Pica","Point"],correct:1},
+{q:"Lệnh JavaScript nào hiển thị thông báo dạng hộp thoại?",a:["console.log()","document.write()","alert()","promptText()"],correct:2},
+{q:"Trong JavaScript, từ khóa nào khai báo biến có thể gán lại giá trị?",a:["const","let","fixed","static"],correct:1},
+{q:"Toán tử === trong JavaScript dùng để?",a:["Gán giá trị","So sánh bằng cả giá trị và kiểu dữ liệu","Cộng hai số","So sánh khác"],correct:1},
+{q:"Mảng (array) trong JavaScript dùng để?",a:["Lưu tập hợp nhiều giá trị trong một biến","Chỉ lưu một ký tự","Tạo màu cho trang","Kết nối Internet"],correct:0},
+{q:"CPU là bộ phận nào của máy tính?",a:["Bộ nhớ ngoài","Bộ xử lý trung tâm","Màn hình","Bàn phím"],correct:1},
+{q:"RAM có đặc điểm nào?",a:["Lưu dữ liệu lâu dài khi tắt máy","Bộ nhớ tạm, dữ liệu thường mất khi tắt nguồn","Chỉ dùng để in","Là thiết bị nhập"],correct:1},
+{q:"Hệ điều hành có chức năng chính là gì?",a:["Quản lý tài nguyên máy tính và cung cấp môi trường hoạt động","Chỉ soạn thảo văn bản","Chỉ phát nhạc","Tạo tài khoản mạng xã hội"],correct:0},
+{q:"Phần mềm nào thường dùng để duyệt web?",a:["Microsoft Paint","Calculator","Google Chrome","Notepad"],correct:2},
+{q:"HTTPS trên địa chỉ website thường cho biết?",a:["Kết nối được mã hóa bằng TLS","Website chắc chắn không lừa đảo","Trang web không cần mật khẩu","Máy tính đã cài phần mềm diệt virus"],correct:0},
+{q:"Khi nhận email yêu cầu cung cấp mật khẩu qua một liên kết lạ, nên làm gì?",a:["Nhấp ngay để kiểm tra","Gửi mật khẩu cho người gửi","Không nhấp; kiểm tra qua kênh chính thức và báo cáo nếu đáng ngờ","Chuyển tiếp cho tất cả bạn bè"],correct:2},
+{q:"Mật khẩu nào an toàn hơn?",a:["12345678","password","Tên và ngày sinh","Cụm mật khẩu dài, riêng biệt, khó đoán"],correct:3},
+{q:"Sao lưu dữ liệu có ý nghĩa gì?",a:["Tăng độ sáng màn hình","Tạo bản sao để khôi phục khi mất hoặc hỏng dữ liệu","Xóa các tệp không cần thiết","Tăng tốc độ gõ bàn phím"],correct:1},
+{q:"Khi sử dụng Wi-Fi công cộng, hành động nào an toàn hơn?",a:["Đăng nhập mọi tài khoản ngân hàng không cần kiểm tra","Chia sẻ mật khẩu với người lạ","Tránh giao dịch nhạy cảm; dùng kết nối bảo mật và xác minh mạng","Tắt mọi cập nhật bảo mật"],correct:2},
+];
+let questions=JSON.parse(localStorage.getItem("quizQuestions")||"null")||defaultQuestions;
+let results=JSON.parse(localStorage.getItem("quizResults")||"[]");
+function save(){localStorage.setItem("quizQuestions",JSON.stringify(questions));localStorage.setItem("quizResults",JSON.stringify(results))}
+function showPage(id,btn){if((id==="report"||id==="manage")&&!adminMode){alert("Chức năng này chỉ dành cho giáo viên.");return}document.querySelectorAll("main section").forEach(s=>s.classList.add("hidden"));document.getElementById(id+"Page").classList.remove("hidden");document.querySelectorAll("nav button").forEach(b=>b.classList.remove("active"));btn.classList.add("active");if(id==="report")renderReport();if(id==="manage")renderQuestionAdmin()}
+function renderQuiz(){let el=document.getElementById("questionList");el.innerHTML="";questions.forEach((q,i)=>{let div=document.createElement("div");div.className="question";div.innerHTML=`<p>Câu ${i+1}: ${escapeHTML(q.q)}</p>`+q.a.map((a,j)=>`<label class="option"><input type="radio" name="q${i}" value="${j}"><span><b>${"ABCD"[j]}.</b> ${escapeHTML(a)}</span></label>`).join("");el.appendChild(div)})}
+function escapeHTML(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function submitQuiz(){
+ let name=document.getElementById("studentName").value.trim();if(!name){alert("Vui lòng nhập họ và tên trước khi nộp bài.");document.getElementById("studentName").focus();return}
+ if(!questions.length){alert("Đề hiện chưa có câu hỏi.");return}
+ let answers=questions.map((q,i)=>{let v=document.querySelector(`input[name="q${i}"]:checked`);return v?Number(v.value):-1});
+ let correct=answers.reduce((sum,v,i)=>sum+(v===questions[i].correct?1:0),0);
+ let score=Math.round(correct/questions.length*10*100)/100;
+ let rank=score>=8?"Tốt":score>=6.5?"Khá":score>=5?"Đạt":"Cần cố gắng";
+ let record={name,className:document.getElementById("studentClass").value.trim(),code:document.getElementById("studentCode").value.trim(),correct,wrong:questions.length-correct,score,rank,date:new Date().toLocaleString("vi-VN"),total:questions.length,answers,questionSnapshot:JSON.parse(JSON.stringify(questions)),scoreAdjustment:0};
+ results.push(record);save();
+ let panel=document.getElementById("resultPanel");panel.classList.remove("hidden");
+ panel.innerHTML=`<div class="result"><h2>Kết quả bài làm</h2><p><b>${escapeHTML(name)}</b></p><div class="score">${score}/10</div><p>Đúng: <b>${correct}/${questions.length}</b> câu &nbsp;|&nbsp; Sai hoặc chưa trả lời: <b>${questions.length-correct}</b></p><h3>Xếp loại: ${rank}</h3><p>Đã lưu kết quả vào báo cáo tổng hợp.</p><button class="btn primary" onclick="showReportQuick()">Xem báo cáo</button></div>`;
+ panel.scrollIntoView({behavior:"smooth"});
+}
+function showReportQuick(){document.querySelector('nav button:nth-child(2)').click()}
+function clearAnswers(){document.querySelectorAll('input[type="radio"]').forEach(x=>x.checked=false);document.getElementById("resultPanel").classList.add("hidden")}
+function renderReport(){
+ let n=results.length,avg=n?results.reduce((s,r)=>s+r.score,0)/n:0,pass=results.filter(r=>r.score>=5).length;
+ document.getElementById("metrics").innerHTML=`<div class="metric"><div>Tổng lượt làm bài</div><div class="num">${n}</div></div><div class="metric"><div>Điểm trung bình</div><div class="num">${avg.toFixed(2)}</div></div><div class="metric"><div>Đạt (≥ 5 điểm)</div><div class="num">${pass}</div></div><div class="metric"><div>Chưa đạt</div><div class="num">${n-pass}</div></div>`;
+ const ranges=[{label:"0–<2",min:0,max:2},{label:"2–<4",min:2,max:4},{label:"4–<6",min:4,max:6},{label:"6–<8",min:6,max:8},{label:"8–10",min:8,max:10.000001}];
+ const hist=ranges.map(x=>({label:x.label,count:results.filter(r=>r.score>=x.min&&r.score<x.max).length}));
+ let histMax=Math.max(1,...hist.map(x=>x.count));
+ document.getElementById("scoreHistogram").innerHTML=`<div class="histogram">${hist.map(x=>`<div class="hist-col"><span class="hist-count">${x.count}</span><div class="hist-bar" style="height:${Math.max(2,x.count/histMax*125)}px"></div><span class="hist-label">${x.label}</span></div>`).join("")}</div><small>Số bài theo khoảng điểm</small>`;
+ const ranks=["Tốt","Khá","Đạt","Cần cố gắng"],rankCounts=ranks.map(x=>({label:x,count:results.filter(r=>r.rank===x).length})),rankMax=Math.max(1,...rankCounts.map(x=>x.count));
+ document.getElementById("rankChart").innerHTML=rankCounts.map(x=>`<div class="bar-row"><span>${x.label}</span><div class="bar-track"><div class="bar-fill" style="width:${x.count/rankMax*100}%"></div></div><span class="bar-value">${x.count}</span></div>`).join("")||"Chưa có dữ liệu";
+ let search=(document.getElementById("searchResult").value||"").toLowerCase();
+ let filtered=results.filter(r=>(r.name+" "+r.className+" "+r.code).toLowerCase().includes(search));
+ const sortMode=document.getElementById("sortScores")?.value||"asc";
+ let sorted=[...filtered].sort((a,b)=>sortMode==="desc"?b.score-a.score:sortMode==="name"?a.name.localeCompare(b.name,"vi"):a.score-b.score);
+ let topRows=sorted.slice(0,30),maxScore=Math.max(1,...topRows.map(r=>r.score));
+ document.getElementById("individualChart").innerHTML=topRows.map(r=>`<div class="bar-row"><span title="${escapeHTML(r.name)}">${escapeHTML(r.name.length>18?r.name.slice(0,18)+"…":r.name)}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.max(1,r.score/10*100)}%"></div></div><span class="bar-value">${r.score}</span></div>`).join("")||"<small>Chưa có kết quả</small>";
+ document.getElementById("resultTable").innerHTML=sorted.map((r,i)=>{let ix=results.indexOf(r);return `<tr><td>${i+1}</td><td>${escapeHTML(r.name)}</td><td>${escapeHTML(r.className||"—")}</td><td>${escapeHTML(r.code||"—")}</td><td>${r.correct}/${r.total}</td><td>${r.wrong}</td><td><b>${r.score}</b></td><td>${r.rank}</td><td>${r.date}</td><td><button class="btn primary action-btn" onclick="reviewResult(${ix})">Xem bài</button><button class="btn secondary action-btn" onclick="editResultScore(${ix})">Sửa điểm</button><button class="btn danger action-btn" onclick="deleteResult(${ix})">Xóa</button></td></tr>`}).join("")||`<tr><td colspan="10">Chưa có dữ liệu phù hợp.</td></tr>`;
+}
+function exportCSV(){if(!results.length){alert("Chưa có dữ liệu để xuất.");return}let rows=[["STT","Họ tên","Lớp/Đơn vị","Mã","Số câu đúng","Số câu sai","Điểm","Xếp loại","Thời gian"],...results.map((r,i)=>[i+1,r.name,r.className,r.code,r.correct,r.wrong,r.score,r.rank,r.date])];let csv="\uFEFF"+rows.map(row=>row.map(v=>`"${String(v??"").replaceAll('"','""')}"`).join(",")).join("\r\n");let blob=new Blob([csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="bao_cao_ket_qua_trac_nghiem.csv";a.click();URL.revokeObjectURL(a.href)}
+function deleteAllResults(){if(confirm("Bạn chắc chắn muốn xóa toàn bộ kết quả đã lưu?")){results=[];save();renderReport()}}
+function renderQuestionAdmin(){document.getElementById("questionAdminTable").innerHTML=questions.map((q,i)=>`<tr><td>${i+1}</td><td>${escapeHTML(q.q)}</td><td>${"ABCD"[q.correct]}</td><td><button class="btn primary action-btn" onclick="editQuestion(${i})">Sửa</button><button class="btn danger action-btn" onclick="removeQuestion(${i})">Xóa</button></td></tr>`).join("")}
+function editQuestion(i){
+ let q=questions[i];
+ document.getElementById("newQuestion").value=q.q;
+ ["optA","optB","optC","optD"].forEach((id,j)=>document.getElementById(id).value=q.a[j]);
+ document.getElementById("correctAnswer").value="ABCD"[q.correct];
+ const addBtn=document.querySelector('#managePage button.primary');
+ addBtn.textContent="Lưu chỉnh sửa câu hỏi";
+ addBtn.onclick=()=>saveQuestionEdit(i);
+ document.getElementById("newQuestion").scrollIntoView({behavior:"smooth"});
+}
+function saveQuestionEdit(i){
+ let q=document.getElementById("newQuestion").value.trim(),opts=["optA","optB","optC","optD"].map(id=>document.getElementById(id).value.trim());
+ if(!q||opts.some(x=>!x)){alert("Hãy nhập đủ nội dung câu hỏi và 4 phương án.");return}
+ questions[i]={q,a:opts,correct:"ABCD".indexOf(document.getElementById("correctAnswer").value)};
+ save();renderQuestionAdmin();renderQuiz();resetQuestionForm();alert("Đã cập nhật câu hỏi.");
+}
+function resetQuestionForm(){
+ ["newQuestion","optA","optB","optC","optD"].forEach(id=>document.getElementById(id).value="");
+ const addBtn=document.querySelector('#managePage button.primary');addBtn.textContent="Thêm câu hỏi";addBtn.onclick=addQuestion;
+}
+function addQuestion(){let q=document.getElementById("newQuestion").value.trim(),opts=["optA","optB","optC","optD"].map(id=>document.getElementById(id).value.trim());if(!q||opts.some(x=>!x)){alert("Vui lòng nhập đầy đủ câu hỏi và 4 phương án.");return}questions.push({q,a:opts,correct:"ABCD".indexOf(document.getElementById("correctAnswer").value)});save();renderQuestionAdmin();renderQuiz();resetQuestionForm();alert("Đã thêm câu hỏi.")}
+function removeQuestion(i){if(confirm("Xóa câu hỏi này khỏi đề?")){questions.splice(i,1);save();renderQuestionAdmin();renderQuiz()}}
+function restoreQuestions(){if(confirm("Khôi phục bộ câu hỏi mẫu? Các câu hỏi tự thêm sẽ bị thay thế.")){questions=defaultQuestions;save();renderQuestionAdmin();renderQuiz()}}
+
+function reviewResult(i){
+ const r=results[i];let snap=r.questionSnapshot||questions,ans=r.answers||[];
+ let detail=snap.map((q,j)=>{
+  let chosen=ans[j],right=q.correct,correct=chosen===right;
+  return `<div class="review-item ${correct?'correct-answer':'wrong-answer'}"><b>Câu ${j+1}:</b> ${escapeHTML(q.q)}<div style="margin-top:8px">${q.a.map((a,k)=>`<div style="padding:5px;color:${k===right?'#15803d':k===chosen&&!correct?'#b91c1c':''};font-weight:${k===right||k===chosen?'bold':'normal'}">${"ABCD"[k]}. ${escapeHTML(a)} ${k===right?'✓ Đáp án đúng':''} ${k===chosen?'← Người làm chọn':''}</div>`).join("")}</div><small>${chosen<0||chosen===undefined?'Chưa trả lời':correct?'Trả lời đúng':'Trả lời sai'}</small></div>`
+ }).join("");
+ document.getElementById("reviewContent").innerHTML=`<h2>📝 Xem lại bài làm: ${escapeHTML(r.name)}</h2><p><b>Lớp/Đơn vị:</b> ${escapeHTML(r.className||'—')} &nbsp; <b>Mã:</b> ${escapeHTML(r.code||'—')} &nbsp; <b>Ngày:</b> ${r.date}</p><div class="cards"><div class="metric"><div>Điểm</div><div class="num">${r.score}/10</div></div><div class="metric"><div>Câu đúng</div><div class="num">${r.correct}</div></div><div class="metric"><div>Câu sai / bỏ</div><div class="num">${r.wrong}</div></div></div>${detail}`;
+ document.getElementById("reviewModal").classList.remove("hidden");
+}
+function closeReview(){document.getElementById("reviewModal").classList.add("hidden")}
+function editResultScore(i){
+ let r=results[i],value=prompt(`Nhập điểm mới cho ${r.name} (0–10):`,r.score);
+ if(value===null)return;let score=Number(value);
+ if(!Number.isFinite(score)||score<0||score>10){alert("Điểm phải nằm trong khoảng 0 đến 10.");return}
+ r.score=score;r.rank=score>=8?"Tốt":score>=6.5?"Khá":score>=5?"Đạt":"Cần cố gắng";r.scoreAdjustment=(r.scoreAdjustment||0)+1;
+ save();renderReport();alert("Đã cập nhật điểm.");
+}
+function deleteResult(i){if(confirm(`Xóa bài làm của ${results[i].name}?`)){results.splice(i,1);save();renderReport()}}
+
+
+const ADMIN_PASSWORD="123456"; // Giáo viên nên đổi mật khẩu trong mã nguồn trước khi chia sẻ.
+let adminMode=false;
+function toggleAdmin(){if(adminMode){adminMode=false;document.getElementById("reportTab").classList.add("hidden");document.getElementById("manageTab").classList.add("hidden");document.getElementById("adminToggle").textContent="🔐 Đăng nhập giáo viên";document.getElementById("studentNotice").classList.remove("hidden");showPage("quiz",document.querySelector('nav button:first-child'));}else{document.getElementById("adminLogin").classList.remove("hidden");document.getElementById("adminPassword").value="";document.getElementById("adminPassword").focus();}}
+function unlockAdmin(){if(document.getElementById("adminPassword").value===ADMIN_PASSWORD){adminMode=true;document.getElementById("adminLogin").classList.add("hidden");document.getElementById("reportTab").classList.remove("hidden");document.getElementById("manageTab").classList.remove("hidden");document.getElementById("adminToggle").textContent="🔓 Đăng xuất giáo viên";document.getElementById("studentNotice").classList.add("hidden");alert("Đăng nhập quản trị thành công.");}else{alert("Mật khẩu không đúng.");}}
+function closeAdminLogin(){document.getElementById("adminLogin").classList.add("hidden")}
+
+renderQuiz();
+</script>
+</body>
+</html>
